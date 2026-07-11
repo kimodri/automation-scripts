@@ -2,6 +2,8 @@ import argparse
 from pathlib import Path
 import re
 
+suffix_pattern = r"_(\d+)\.[a-zA-Z0-9]+$"
+
 def number_files(directory: str, start_no: int):
     
     # Resolve the path
@@ -14,20 +16,23 @@ def number_files(directory: str, start_no: int):
     for idx, file in enumerate(list(path.iterdir())):
         
         if file.is_file():
-            if start_no < 10:
-                new_name = f"000{start_no + idx}{file.suffix}"
-                new_file = file.with_name(new_name)
-                file.rename(new_file)
-                print(f"Renamed: {file} to {new_file.name}")
-            elif start_no < 100:
-                new_name = f"00{start_no + idx}{file.suffix}"
-                new_file = file.with_name(new_name)
-                file.rename(new_file)
-                print(f"Renamed: {file} to {new_file.name}")
-            elif start_no < 1000:
-                new_name = f"0{start_no + idx}{file.suffix}"
-                new_file = file.with_name(new_name)
-                file.rename(new_file)
+            filename = file.name
+            match = re.search(suffix_pattern, filename)
+            if match:
+                number = int(match.group(1))
+                new_number = start_no + number - 1
+                if new_number < 10:
+                    new_name = re.sub(suffix_pattern, f"000{new_number}{file.suffix}", filename)
+                    new_file = file.with_name(new_name)
+                    file.rename(new_file)
+                elif new_number < 100:
+                    new_name = re.sub(suffix_pattern, f"00{new_number}{file.suffix}", filename)
+                    new_file = file.with_name(new_name)
+                    file.rename(new_file)
+                elif new_number < 1000:
+                    new_name = re.sub(suffix_pattern, f"0{new_number}{file.suffix}", filename)
+                    new_file = file.with_name(new_name)
+                    file.rename(new_file)
                 print(f"Renamed: {file} to {new_file.name}")
         elif file.is_dir():
             print(f"Skipped: {file} is a directory.")
