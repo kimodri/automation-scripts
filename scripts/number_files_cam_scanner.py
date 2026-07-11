@@ -1,3 +1,8 @@
+"""
+TODO:
+1. Adding 0 padding is brittle and can be improved.
+"""
+
 import argparse
 from pathlib import Path
 import re
@@ -22,15 +27,20 @@ def number_files(directory: str, start_no: int):
                 number = int(match.group(1))
                 new_number = start_no + number - 1
                 if new_number < 10:
-                    new_name = re.sub(suffix_pattern, f"000{new_number}{file.suffix}", filename)
+                    # new_name = re.replace(suffix_pattern, f"000{new_number}{file.suffix}", filename)
+                    new_name = f"000{new_number}{file.suffix}"
                     new_file = file.with_name(new_name)
                     file.rename(new_file)
-                elif new_number < 100:
-                    new_name = re.sub(suffix_pattern, f"00{new_number}{file.suffix}", filename)
+
+                elif new_number < 100 and new_number >= 10:
+                    # new_name = re.replace(suffix_pattern, f"00{new_number}{file.suffix}", filename)
+                    new_name = f"00{new_number}{file.suffix}"
                     new_file = file.with_name(new_name)
                     file.rename(new_file)
-                elif new_number < 1000:
-                    new_name = re.sub(suffix_pattern, f"0{new_number}{file.suffix}", filename)
+
+                elif new_number < 1000 and new_number >= 100:
+                    # new_name = re.replace(suffix_pattern, f"0{new_number}{file.suffix}", filename)
+                    new_name = f"0{new_number}{file.suffix}"
                     new_file = file.with_name(new_name)
                     file.rename(new_file)
                 print(f"Renamed: {file} to {new_file.name}")
