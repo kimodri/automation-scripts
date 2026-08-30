@@ -119,10 +119,9 @@ The `Update LeetCode problems` workflow runs every Monday at approximately 2:00 
 
 Each run:
 
-1. Runs the automated tests.
-2. Updates the selected repository CSV.
-3. Appends missing rows to the corresponding Google Sheets staging worksheet.
-4. Commits the CSV only when new problems were discovered.
+1. Updates the selected repository CSV.
+2. Appends missing rows to the corresponding Google Sheets staging worksheet.
+3. Commits the CSV only when new problems were discovered.
 
 The workflow requires `contents: write` permission so its bot account can commit changed CSV data.
 
