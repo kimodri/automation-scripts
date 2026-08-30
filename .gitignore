@@ -1,2 +1,5 @@
 .venv/
 batfiles/
+__pycache__/
+.env
+keys/

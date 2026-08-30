@@ -1,0 +1,117 @@
+<!doctype html>
+<html>
+  <head>
+    <base target="_top">
+    <style>
+      body {
+        color: #202124;
+        font-family: Arial, sans-serif;
+        margin: 24px;
+      }
+
+      p {
+        line-height: 1.5;
+      }
+
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 24px;
+      }
+
+      button {
+        border: 1px solid #dadce0;
+        border-radius: 4px;
+        cursor: pointer;
+        padding: 9px 14px;
+      }
+
+      button.primary {
+        background: #1a73e8;
+        border-color: #1a73e8;
+        color: #fff;
+      }
+
+      button:disabled {
+        cursor: default;
+        opacity: 0.55;
+      }
+
+      #status {
+        color: #5f6368;
+        min-height: 20px;
+      }
+    </style>
+  </head>
+  <body>
+    <p id="summary"></p>
+    <p>
+      Download the file first. After confirming that it exists on your computer,
+      mark this exact batch as downloaded.
+    </p>
+    <div class="actions">
+      <button class="primary" id="download" type="button">Download CSV</button>
+      <button id="confirm" type="button" disabled>Mark batch as downloaded</button>
+      <button id="cancel" type="button">Close</button>
+    </div>
+    <p id="status"></p>
+
+    <script>
+      const exportData = <?!= exportDataJson ?>;
+      const summary = document.getElementById("summary");
+      const downloadButton = document.getElementById("download");
+      const confirmButton = document.getElementById("confirm");
+      const cancelButton = document.getElementById("cancel");
+      const status = document.getElementById("status");
+
+      summary.textContent = `${exportData.rows.length} pending row(s) are ready.`;
+
+      function escapeCsvField(value) {
+        return `"${String(value).replace(/"/g, '""')}"`;
+      }
+
+      function buildCsv() {
+        const rows = [["title", "link", "tag"], ...exportData.rows];
+        return rows
+          .map((row) => row.map(escapeCsvField).join(","))
+          .join("\r\n");
+      }
+
+      downloadButton.addEventListener("click", () => {
+        const blob = new Blob([buildCsv()], { type: "text/csv;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.download = exportData.filename;
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+        URL.revokeObjectURL(url);
+
+        confirmButton.disabled = false;
+        status.textContent = "CSV download started. Confirm only after locating the file.";
+      });
+
+      confirmButton.addEventListener("click", () => {
+        confirmButton.disabled = true;
+        downloadButton.disabled = true;
+        status.textContent = "Updating worksheet statuses...";
+
+        google.script.run
+          .withSuccessHandler((updatedCount) => {
+            status.textContent = `${updatedCount} row(s) marked as downloaded.`;
+            setTimeout(() => google.script.host.close(), 900);
+          })
+          .withFailureHandler((error) => {
+            status.textContent = `Statuses were not changed: ${error.message}`;
+            confirmButton.disabled = false;
+            downloadButton.disabled = false;
+          })
+          .markRowsUploaded(exportData.sheetName, exportData.rowReferences);
+      });
+
+      cancelButton.addEventListener("click", () => google.script.host.close());
+    </script>
+  </body>
+</html>

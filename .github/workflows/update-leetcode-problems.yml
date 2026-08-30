@@ -1,0 +1,65 @@
+name: Update LeetCode problems
+
+on:
+  schedule:
+    - cron: "0 18 * * 0"
+  workflow_dispatch:
+    inputs:
+      category:
+        description: LeetCode category slug
+        required: true
+        default: database
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-leetcode-problems-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    env:
+      CATEGORY: ${{ inputs.category || 'database' }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+
+      - name: Run tests
+        run: python -m unittest discover -s tests -v
+
+      - name: Update category CSV
+        run: python scripts/get_leetcode/get_leetcode_problems.py --category "$CATEGORY"
+
+      - name: Synchronize Google Sheets staging tab
+        env:
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          GOOGLE_SPREADSHEET_ID: ${{ secrets.GOOGLE_SPREADSHEET_ID }}
+        run: python scripts/get_leetcode/sync_google_sheet.py --category "$CATEGORY"
+
+      - name: Commit new problems
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- scripts/get_leetcode/data/*.csv
+
+          if git diff --cached --quiet; then
+            echo "No new problems to commit."
+            exit 0
+          fi
+
+          git commit -m "data: update ${CATEGORY} LeetCode problems"
+          git push
