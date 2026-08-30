@@ -72,7 +72,7 @@
       }
 
       function buildCsv() {
-        const rows = [["title", "link", "tag"], ...exportData.rows];
+        const rows = [["problem", "tag"], ...exportData.rows];
         return rows
           .map((row) => row.map(escapeCsvField).join(","))
           .join("\r\n");

@@ -89,10 +89,10 @@ python scripts/get_leetcode/sync_google_sheet.py --category database
 The synchronizer creates a worksheet named `leetcode_database` when needed. Staging worksheets contain:
 
 ```text
-title,link,tag,is_uploaded
+problem,tag,is_uploaded
 ```
 
-Existing worksheet links are left unchanged. Missing links are appended with a blank `is_uploaded` cell.
+The `problem` cell displays the problem title as a clickable Google Sheets hyperlink. Existing problem links are left unchanged, and missing links are appended with a blank `is_uploaded` cell. The next synchronization automatically migrates the former `title,link,tag,is_uploaded` layout while preserving its statuses.
 
 ## Install the Apps Script
 
@@ -108,7 +108,13 @@ You can also assign the function `showPendingCsvDialog` to a drawing or image us
 The dialog downloads a UTF-8 CSV with these columns:
 
 ```text
-title,link,tag
+problem,tag
+```
+
+Each exported `problem` value is HTML in this form:
+
+```html
+<h3><a href="https://leetcode.com/problems/example/">Example</a></h3>
 ```
 
 After locating the downloaded file, select **Mark batch as downloaded**. Only the rows included in that dialog are changed from blank to `1`. Closing the dialog without confirmation leaves their statuses blank.

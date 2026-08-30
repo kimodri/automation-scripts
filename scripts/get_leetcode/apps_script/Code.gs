@@ -1,5 +1,5 @@
 const SHEET_NAME_PATTERN = /^leetcode_[a-z0-9]+(?:-[a-z0-9]+)*$/;
-const SHEET_HEADERS = ["title", "link", "tag", "is_uploaded"];
+const SHEET_HEADERS = ["problem", "tag", "is_uploaded"];
 
 
 function onOpen() {
@@ -46,7 +46,9 @@ function getPendingExport_() {
     );
   }
 
-  const values = sheet.getDataRange().getDisplayValues();
+  const dataRange = sheet.getDataRange();
+  const values = dataRange.getDisplayValues();
+  const formulas = dataRange.getFormulas();
   if (values.length === 0) {
     throw new Error("The active worksheet is empty.");
   }
@@ -64,13 +66,14 @@ function getPendingExport_() {
   for (let index = 1; index < values.length; index += 1) {
     const row = values[index];
     const title = (row[0] || "").trim();
-    const link = (row[1] || "").trim();
-    const tag = (row[2] || "").trim();
-    const isUploaded = (row[3] || "").trim();
+    const formula = (formulas[index][0] || "").trim();
+    const link = hyperlinkUrlFromFormula_(formula);
+    const tag = (row[1] || "").trim();
+    const isUploaded = (row[2] || "").trim();
 
     if (isUploaded === "" && link !== "") {
-      rows.push([title, link, tag]);
-      rowReferences.push({ rowNumber: index + 1, link: link });
+      rows.push([problemHtml_(title, link), tag]);
+      rowReferences.push({ rowNumber: index + 1, formula: formula });
     }
   }
 
@@ -113,8 +116,8 @@ function markRowsUploaded(sheetName, rowReferences) {
         throw new Error("The export contained an invalid worksheet row number.");
       }
 
-      const currentLink = String(sheet.getRange(rowNumber, 2).getDisplayValue()).trim();
-      if (currentLink !== reference.link) {
+      const currentFormula = String(sheet.getRange(rowNumber, 1).getFormula()).trim();
+      if (currentFormula !== reference.formula) {
         throw new Error(
           `Row ${rowNumber} changed after the CSV was prepared. No statuses were changed.`
         );
@@ -124,7 +127,7 @@ function markRowsUploaded(sheetName, rowReferences) {
     let updatedCount = 0;
     rowReferences.forEach((reference) => {
       const rowNumber = reference.rowNumber;
-      const statusCell = sheet.getRange(rowNumber, 4);
+      const statusCell = sheet.getRange(rowNumber, 3);
       if (String(statusCell.getDisplayValue()).trim() === "") {
         statusCell.setValue(1);
         updatedCount += 1;
@@ -136,6 +139,27 @@ function markRowsUploaded(sheetName, rowReferences) {
   } finally {
     lock.releaseLock();
   }
+}
+
+
+function hyperlinkUrlFromFormula_(formula) {
+  const match = formula.match(/^=HYPERLINK\("((?:""|[^"])*)"\s*[,;]/i);
+  return match ? match[1].replace(/""/g, '"') : "";
+}
+
+
+function escapeHtml_(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+
+function problemHtml_(title, link) {
+  return `<h3><a href="${escapeHtml_(link)}">${escapeHtml_(title)}</a></h3>`;
 }
 
 

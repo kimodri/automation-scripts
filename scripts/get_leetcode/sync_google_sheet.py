@@ -10,10 +10,12 @@ from dotenv import load_dotenv
 
 
 CSV_COLUMNS = ("title", "link", "tag")
-SHEET_COLUMNS = ("title", "link", "tag", "is_uploaded")
+SHEET_COLUMNS = ("problem", "tag", "is_uploaded")
+LEGACY_SHEET_COLUMNS = ("title", "link", "tag", "is_uploaded")
 DATA_DIRECTORY = Path(__file__).resolve().parent / "data"
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 CATEGORY_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+HYPERLINK_PATTERN = re.compile(r'^=HYPERLINK\("((?:""|[^"])*)"\s*,', re.IGNORECASE)
 GOOGLE_SHEETS_SCOPES = ("https://www.googleapis.com/auth/spreadsheets",)
 
 
@@ -39,9 +41,23 @@ def read_category_csv(csv_path: Path) -> list[dict[str, str]]:
         return [{column: row[column] for column in CSV_COLUMNS} for row in reader]
 
 
+def escape_formula_string(value: str) -> str:
+    return value.replace('"', '""')
+
+
+def problem_formula(title: str, link: str) -> str:
+    return (
+        f'=HYPERLINK("{escape_formula_string(link)}",'
+        f'"{escape_formula_string(title)}")'
+    )
+
+
+def link_from_problem_formula(formula: str) -> str:
+    match = HYPERLINK_PATTERN.match(formula.strip())
+    return match.group(1).replace('""', '"') if match else ""
+
+
 def get_or_create_worksheet(spreadsheet, worksheet_name: str, minimum_rows: int):
-
-
     try:
         return spreadsheet.worksheet(worksheet_name)
     except gspread.WorksheetNotFound:
@@ -52,22 +68,49 @@ def get_or_create_worksheet(spreadsheet, worksheet_name: str, minimum_rows: int)
         )
         worksheet.update(
             values=[list(SHEET_COLUMNS)],
-            range_name="A1:D1",
+            range_name="A1:C1",
             value_input_option="RAW",
         )
         return worksheet
 
 
+def migrate_legacy_worksheet(worksheet, sheet_values: list[list[str]]):
+    migrated_values = [list(SHEET_COLUMNS)]
+
+    for row in sheet_values[1:]:
+        title = row[0] if len(row) > 0 else ""
+        link = row[1] if len(row) > 1 else ""
+        tag = row[2] if len(row) > 2 else ""
+        is_uploaded = row[3] if len(row) > 3 else ""
+        if link:
+            migrated_values.append(
+                [problem_formula(title, link), tag, is_uploaded]
+            )
+
+    worksheet.update(
+        values=migrated_values,
+        range_name=f"A1:C{len(migrated_values)}",
+        value_input_option="USER_ENTERED",
+    )
+    worksheet.batch_clear([f"D1:D{max(len(sheet_values), 1)}"])
+    return migrated_values
+
+
 def append_missing_rows(worksheet, csv_rows: list[dict[str, str]]) -> int:
-    sheet_values = worksheet.get_all_values()
+    sheet_values = worksheet.get_all_values(
+        value_render_option=gspread.utils.ValueRenderOption.formula
+    )
 
     if not sheet_values:
         worksheet.update(
             values=[list(SHEET_COLUMNS)],
-            range_name="A1:D1",
+            range_name="A1:C1",
             value_input_option="RAW",
         )
         sheet_values = [list(SHEET_COLUMNS)]
+
+    if tuple(sheet_values[0]) == LEGACY_SHEET_COLUMNS:
+        sheet_values = migrate_legacy_worksheet(worksheet, sheet_values)
 
     if tuple(sheet_values[0]) != SHEET_COLUMNS:
         raise ValueError(
@@ -76,20 +119,22 @@ def append_missing_rows(worksheet, csv_rows: list[dict[str, str]]) -> int:
         )
 
     existing_links = {
-        row[1].strip()
+        link_from_problem_formula(row[0])
         for row in sheet_values[1:]
-        if len(row) > 1 and row[1].strip()
+        if row and link_from_problem_formula(row[0])
     }
     rows_to_append = []
 
     for row in csv_rows:
         if row["link"] in existing_links:
             continue
-        rows_to_append.append([row["title"], row["link"], row["tag"], ""])
+        rows_to_append.append(
+            [problem_formula(row["title"], row["link"]), row["tag"], ""]
+        )
         existing_links.add(row["link"])
 
     if rows_to_append:
-        worksheet.append_rows(rows_to_append, value_input_option="RAW")
+        worksheet.append_rows(rows_to_append, value_input_option="USER_ENTERED")
 
     return len(rows_to_append)
 
